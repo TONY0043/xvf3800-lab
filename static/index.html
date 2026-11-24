@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XVF3800 테스트 랩</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#16202c;--mute:#5d6b7b;--line:#dde2e8;--acc:#0b6bcb;--good:#12804a;--warn:#b25b00;--bad:#c22f2f;
+  --b1:#1f77d4;--b2:#e07b00;--b3:#1a9d55;--b4:#8a4fd3}
+@media (prefers-color-scheme:dark){:root{--bg:#10151b;--card:#19212b;--ink:#e6ebf1;--mute:#93a1b2;--line:#2b3644;--acc:#5aa9ff;--good:#4fd08d;--warn:#f0a44a;--bad:#ff7b7b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,"Noto Sans KR","Malgun Gothic",sans-serif}
+header{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--card)}
+h1{font-size:18px;margin:0}
+h2{font-size:16px;margin:0 0 8px}
+h3{font-size:14px;margin:14px 0 6px;color:var(--mute);font-weight:600}
+.chip{font-size:12.5px;padding:2px 9px;border-radius:99px;border:1px solid var(--line);color:var(--mute);white-space:nowrap}
+.chip.ok{color:var(--good);border-color:var(--good)} .chip.bad{color:var(--bad);border-color:var(--bad)}
+nav{display:flex;gap:4px;padding:10px 20px 0;flex-wrap:wrap}
+nav button{border:1px solid var(--line);border-bottom:none;background:transparent;color:var(--mute);padding:8px 14px;border-radius:8px 8px 0 0;font:inherit;cursor:pointer}
+nav button.on{background:var(--card);color:var(--ink);font-weight:600}
+main{padding:0 20px 60px;max-width:1280px}
+section{display:none;background:var(--card);border:1px solid var(--line);border-radius:0 10px 10px 10px;padding:18px}
+section.on{display:block}
+.grid{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:22px}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+canvas{max-width:100%;display:block}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--mute);font-weight:600}
+td.num{font-variant-numeric:tabular-nums}
+button.go{background:var(--acc);color:#fff;border:none;border-radius:8px;padding:9px 18px;font:inherit;font-weight:600;cursor:pointer}
+button.go:disabled{opacity:.45;cursor:default}
+button.sub{background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 6px}
+input[type=number]{width:74px} input[type=range]{padding:0;vertical-align:middle}
+label{display:inline-flex;gap:6px;align-items:center;margin:4px 14px 4px 0}
+.how{background:var(--bg);border-radius:8px;padding:10px 14px;margin:8px 0 12px}
+.how ol,.how ul{margin:4px 0;padding-left:20px}
+.err{color:var(--bad);margin:8px 0;white-space:pre-wrap}
+.meter{height:14px;border-radius:4px;overflow:hidden;border:1px solid var(--line);background:linear-gradient(90deg,#27a567 0 75%,#d9a400 75% 92%,#d23c3c 92%)}
+.meter i{display:block;height:100%;background:var(--bg);margin-left:auto}
+.mrow{display:grid;grid-template-columns:150px 1fr 70px;gap:8px;align-items:center;margin:4px 0;font-size:13px}
+#banner{position:fixed;left:0;right:0;top:0;z-index:9;padding:16px 22px;color:#fff;display:none;box-shadow:0 4px 18px #0006}
+#banner.wait{background:#a86200} #banner.do{background:#b3261e} #banner.work{background:#28527a}
+#banner .t{font-size:24px;font-weight:700} #banner .c{font-size:15px;opacity:.95}
+#banner .bar{height:6px;background:#fff4;border-radius:3px;margin-top:8px} #banner .bar i{display:block;height:100%;background:#fff;border-radius:3px}
+#banner button{float:right;background:#fff2;color:#fff;border:1px solid #fff8;border-radius:6px;padding:5px 12px;font:inherit;cursor:pointer}
+.verdict{font-size:19px;font-weight:700;margin:6px 0 10px}
+.sum{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin:8px 0}
+.sum div{background:var(--bg);border-radius:8px;padding:8px 12px} .sum b{display:block;font-size:17px} .sum span{font-size:12.5px;color:var(--mute)}
+.ab{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin:8px 0}
+.ab div{background:var(--bg);border-radius:8px;padding:8px 12px} .ab audio{width:100%;margin-top:4px}
+.res{border-top:2px solid var(--line);margin-top:18px;padding-top:12px}
+.res img{max-width:100%;border-radius:6px;margin:8px 0;border:1px solid var(--line)}
+.notes{color:var(--mute);font-size:13.5px;padding-left:20px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+small{color:var(--mute)}
+</style>
+</head>
+<body>
+<div id="banner"><button onclick="post('/api/cancel',{})">취소</button><div class="t"></div><div class="c"></div><div class="bar"><i></i></div></div>
+<header>
+  <h1>reSpeaker XVF3800 테스트 랩</h1>
+  <span class="chip" id="cCtl">제어</span><span class="chip" id="cAud">오디오</span>
+  <span class="chip" id="cInfo"></span>
+</header>
+<div class="err" id="topErr" style="padding:0 20px"></div>
+<nav id="nav"></nav>
+<main>
+
+<section id="live">
+  <div class="grid">
+    <div>
+      <h2>소리 방향과 빔</h2>
+      <canvas id="dial" width="360" height="360"></canvas>
+      <table id="beams"></table>
+      <p><span class="chip" id="cSp">음성</span> <span class="chip" id="cConv">AEC</span> <span class="chip" id="cRt">RT60</span> <span class="chip" id="cAgc">AGC</span> <span class="chip" id="cMute">음소거</span></p>
+      <small>검은 바늘 = 장치가 판단한 말소리 방향(DOA). 색 점 = 각 빔이 향한 방향(바깥쪽일수록 음성 에너지 큼).<br>
+      화면의 0°(위쪽)는 보드 기준 각도이며, 실제 보드 방향과 맞추려면 한 번 말해 보고 확인하세요.</small>
+    </div>
+    <div>
+      <h2>출력 채널 (지금 USB 로 들어오는 소리)</h2>
+      <div id="meters"></div>
+      <h3>실시간 스펙트로그램 (위: L 채널, 아래: R 채널 · 0–8 kHz)</h3>
+      <canvas id="spec" width="720" height="260" style="width:100%;border-radius:6px;background:#000"></canvas>
+      <h3>지금 들어보기</h3>
+      <button class="sub" onclick="snap()">최근 10초를 잘라서 듣기</button>
+      <div class="ab" id="snapOut"></div>
+      <h3>실시간 설정 <small>(플래시에 저장하지 않음 · 재부팅하면 원래대로)</small></h3>
+      <div>
+        <label>L/R 채널에 내보낼 신호 <select id="sRoute" onchange="post('/api/route',{preset:this.value})"><option value="">(현재 유지)</option></select></label>
+        <small id="routeNow"></small>
+      </div>
+      <div>
+        <label><input type="checkbox" id="sAgc" onchange="setp('PP_AGCONOFF',[+this.checked])"> 자동 음량(AGC)</label>
+        <label><input type="checkbox" id="sEcho" onchange="setp('PP_ECHOONOFF',[+this.checked])"> 잔여 에코 억제</label>
+      </div>
+      <div>
+        <label>정상 잡음 남기는 양 <input type="range" id="sNs" min="0" max="1" step="0.05" onchange="setp('PP_MIN_NS',[+this.value])"> <span id="vNs"></span></label>
+        <label>돌발 잡음 남기는 양 <input type="range" id="sNn" min="0" max="1" step="0.05" onchange="setp('PP_MIN_NN',[+this.value])"> <span id="vNn"></span></label>
+        <br><small>0 에 가까울수록 강하게 지움, 1 = 잡음 제거 끔 (PP_MIN_NS / PP_MIN_NN)</small>
+      </div>
+      <div>
+        <label><input type="checkbox" id="sFix" onchange="setp('AEC_FIXEDBEAMSONOFF',[+this.checked])"> 고정 빔 모드</label>
+        <label>빔1 <input type="number" id="sF1" min="0" max="359" oninput="this.dataset.dirty=1" onkeydown="if(event.key==='Enter')applyFix()">°</label>
+        <label>빔2 <input type="number" id="sF2" min="0" max="359" oninput="this.dataset.dirty=1" onkeydown="if(event.key==='Enter')applyFix()">°</label>
+        <button class="sub" onclick="applyFix()">각도 적용</button>
+      </div>
+      <div>
+        <label>LED <select id="sLed" onchange="setp('LED_EFFECT',[+this.value])"><option value="0">끔</option><option value="1">숨쉬기</option><option value="2">무지개</option><option value="3">단색</option><option value="4">방향 표시(DOA)</option><option value="5">링</option></select></label>
+        <button class="sub" onclick="if(confirm('장치를 재부팅해서 저장된 설정으로 되돌릴까요?'))post('/api/reboot',{})">장치 재부팅(설정 되돌리기)</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="doa">
+  <h2>방향 탐지(DOA) 정확도</h2>
+  <div class="how"><b>비유:</b> 눈을 감은 사람에게 "내가 어디 있게?" 하고 사방에서 불러보는 테스트입니다.
+    <ol><li>보드를 책상에 두고, 보드 주변 1m 거리에 0° 기준점을 하나 정합니다 (아무 방향이나 OK).</li>
+    <li>시작을 누르면 화면이 시키는 각도로 시계 방향으로 옮겨 가며, 빨간 안내가 뜬 동안 계속 말합니다.</li>
+    <li>보드의 LED 링도 말하는 쪽을 따라오는지 눈으로 함께 확인하세요.</li></ol></div>
+  <label>테스트할 각도 <input id="pAngles" value="0,90,180,270" style="width:180px"></label>
+  <label>각도마다 말하는 시간 <input type="number" id="pSpeak" value="4">초</label>
+  <button class="go" onclick="run('doa',{angles:pAngles.value.split(',').map(Number),speak:+pSpeak.value})">시작</button>
+  <div class="res" id="r_doa"></div>
+</section>
+
+<section id="beamscan">
+  <h2>빔 패턴 (빔포밍이 정말 한쪽만 잘 듣는가)</h2>
+  <div class="how"><b>비유:</b> 손전등(빔)을 한 바퀴 돌리면서 어느 방향에서 가장 밝게 보이는지 재는 것과 같습니다. 소리는 가만히 두고 '듣는 방향'만 전자적으로 돌립니다.
+    <ol><li>휴대폰으로 일정한 소리(화이트/핑크 노이즈, 또는 끊기지 않는 말소리·음악)를 보드에서 1m 떨어진 한 곳에 틀어 둡니다. <b>ReSpeaker 의 스피커 출력으로 틀면 안 됩니다</b> (에코로 지워짐).</li>
+    <li>시작을 누르고 약 1분간 소리와 보드를 건드리지 않습니다.</li>
+    <li>결과 그림에서 소리가 있는 방향으로 봉우리 하나가 생기고 반대쪽이 꺼지면 빔포밍이 동작하는 것입니다.</li></ol></div>
+  <label>각도 간격 <select id="pStep"><option>30</option><option selected>20</option><option>15</option></select>°</label>
+  <button class="go" onclick="run('beamscan',{step:+pStep.value})">시작</button>
+  <h3>멀티빔(두 사람 동시 추적) 확인 방법</h3>
+  <div class="how">XVF3800 은 느리게 움직이는 집중 빔 2개 + 빠르게 훑는 탐색 빔 1개를 쓰고, 그중 가장 좋은 것을 자동 선택합니다.
+    <ul><li><b>보기:</b> '실시간' 탭에서 두 사람(또는 나 + 말소리 나오는 휴대폰)이 서로 다른 방향에서 번갈아 말할 때, 파란 점(빔1)과 주황 점(빔2)이 각각 다른 사람 쪽에 자리 잡는지 봅니다.</li>
+    <li><b>듣기:</b> '자유 녹음' 탭에서 <i>빔 1 ↔ 빔 2</i> 를 골라 녹음하면, 한쪽 파일엔 A 의 목소리가, 다른 파일엔 B 의 목소리가 더 크게 들려야 합니다.</li></ul></div>
+  <div class="res" id="r_beamscan"></div>
+</section>
+
+<section id="ns">
+  <h2>잡음 제거</h2>
+  <div class="how"><b>비유:</b> 시끄러운 카페에서 찍은 영상과, 배경 소음을 지운 영상을 나란히 비교하는 것입니다. 같은 순간을 <b>처리 전(원본 마이크)</b>과 <b>처리 후</b>로 동시에 녹음합니다.
+    <ol><li>일정한 소음원을 켭니다 (선풍기, 공기청정기, 휴대폰의 화이트노이즈 영상 등).</li>
+    <li>처음 몇 초는 말하지 않고, 이어서 소음 속에서 말합니다.</li>
+    <li>결과의 두 파일을 번갈아 듣고, 숫자(SNR 개선량)와 스펙트로그램을 봅니다.</li></ol></div>
+  <label>소음만 <input type="number" id="pNoise" value="6">초</label>
+  <label>말하기 <input type="number" id="pSpeech" value="8">초</label>
+  <label><input type="checkbox" id="pAgcN" checked> 측정 중 AGC 끄기 (권장)</label>
+  <button class="go" onclick="run('ns',{noise:+pNoise.value,speech:+pSpeech.value,freeze_agc:pAgcN.checked})">시작</button>
+  <div class="res" id="r_ns"></div>
+</section>
+
+<section id="aec">
+  <h2>에코 제거 (AEC)</h2>
+  <div class="how"><b>비유:</b> 스피커폰 통화에서 상대 목소리가 내 마이크로 다시 들어가 메아리치는 것을 막는 기능입니다. 장치는 "내가 방금 스피커로 낸 소리"를 알고 있어서 그것만 빼냅니다.
+    <ol><li><b>필수:</b> 스피커를 ReSpeaker 의 <b>3.5mm 잭 또는 JST 스피커 단자</b>에 연결합니다. PC 스피커로 틀면 장치가 기준 신호를 몰라서 지울 수 없습니다.</li>
+    <li>시작을 누르면 장치 스피커로 테스트 음을 틀고, 화면 안내에 따라 조용히 있거나 말합니다 (약 35초).</li>
+    <li>'처리된 출력'에서 스피커 소리가 사라지고 내 목소리만 남는지 듣습니다.</li></ol></div>
+  <label>재생할 WAV 경로 (비우면 내장 테스트 음) <input id="pWav" style="width:320px" placeholder="/home/…/music.wav"></label>
+  <label><input type="checkbox" id="pAgcA" checked> 측정 중 AGC 끄기 (권장)</label>
+  <button class="go" onclick="run('aec',{wav:pWav.value,freeze_agc:pAgcA.checked})">시작</button>
+  <div class="res" id="r_aec"></div>
+</section>
+
+<section id="record">
+  <h2>자유 녹음 A/B 비교</h2>
+  <div class="how">원하는 두 신호를 L/R 에 동시에 받아 녹음한 뒤, 음량을 맞춰 번갈아 들어봅니다. 멀티빔·잔향 제거·자동선택 빔 품질을 직접 귀로 판단할 때 쓰세요.</div>
+  <label>비교할 신호 <select id="pPreset"></select></label>
+  <label>길이 <input type="number" id="pSecs" value="12">초</label>
+  <button class="go" onclick="run('record',{preset:pPreset.value,seconds:+pSecs.value})">녹음 시작</button>
+  <div class="res" id="r_record"></div>
+</section>
+
+<section id="voicegate">
+  <h2>내 목소리만 남기기 (방향 거름망)</h2>
+  <div class="how"><b>비유:</b> 귀 하나는 나를, 다른 귀 하나는 상대를 향하게 한 뒤 "어느 귀에 더 크게 들리나"로 누가 말했는지 가려냅니다. 내 쪽 귀가 더 크게 들은 말만 STT 로 넘깁니다.
+    <ol><li>보드를 돌려 <b>나와 상대가 서로 반대편</b>에 오게 놓습니다 (예: 나 90°, 상대 270°).</li>
+    <li>시작을 누르고 화면 안내대로 ① 모두 조용히 ② 나만 말하기 ③ 상대만 말하기 ④ 자유 대화 순서로 진행합니다. 상대가 없으면 그 자리에 말소리 나오는 휴대폰을 두어도 됩니다.</li>
+    <li>결과에서 <b>거르기 전/후</b>를 번갈아 듣고, 보존율(내 말이 살아남은 비율)과 누설률(남의 말이 새어 나온 비율)을 봅니다.</li></ol>
+    테스트 동안만 고정 빔·출력 채널·AGC 를 바꾸고 끝나면 되돌립니다.</div>
+  <label>내 방향 <input type="number" id="pMe" value="90" min="0" max="359">°</label>
+  <label>상대 방향 <input type="number" id="pOt" value="270" min="0" max="359">°</label>
+  <label>나만 <input type="number" id="pTme" value="20">초</label>
+  <label>상대만 <input type="number" id="pTot" value="20">초</label>
+  <label>자유 대화 <input type="number" id="pTmix" value="30">초</label>
+  <button class="go" onclick="run('voicegate',{me:+pMe.value,others:+pOt.value,t_me:+pTme.value,t_others:+pTot.value,t_mix:+pTmix.value})">시작</button>
+  <div class="res" id="r_voicegate"></div>
+</section>
+
+<section id="params">
+  <h2>파라미터 조정</h2>
+  <div class="how">값을 바꾸면 <b>즉시 장치에 적용</b>됩니다. 다른 탭의 테스트를 다시 돌려 전/후를 비교해 보세요 (믹싱 콘솔의 노브를 돌리고 다시 들어보는 것과 같습니다).
+    <ul><li>바꾼 값은 장치를 재부팅하거나 뽑으면 사라집니다. 계속 쓰려면 <b>플래시에 저장</b>을 누르세요.</li>
+    <li>노란 줄 = 이 프로그램을 켠 뒤 바뀐 항목. <b>되돌리기</b>로 처음 값으로 복원합니다.</li></ul></div>
+  <p>
+    <button class="sub" onclick="loadParams()">장치에서 다시 읽기</button>
+    <button class="sub" onclick="revertAll()">바꾼 항목 모두 되돌리기</button>
+    <button class="sub" onclick="if(confirm('현재 설정 전체를 장치 플래시에 저장할까요?\n전원을 껐다 켜도 유지되며, USB/I2S 펌웨어 모두에 적용됩니다.'))post('/api/save',{}).then(j=>j.ok&&alert('저장했습니다'))">플래시에 저장</button>
+    <button class="sub" onclick="if(confirm('플래시에 저장된 설정을 지우고 기본값으로 되돌릴까요?\n지운 뒤 장치를 재부팅해야 적용됩니다.'))post('/api/clear',{}).then(j=>j.ok&&alert('지웠습니다. 장치 재부팅을 눌러 주세요.'))">저장값 지우기(기본값)</button>
+    <button class="sub" onclick="if(confirm('장치를 재부팅할까요? 저장하지 않은 변경은 사라집니다.'))post('/api/reboot',{}).then(()=>setTimeout(loadParams,4000))">장치 재부팅</button>
+    <label style="margin-left:10px"><input type="checkbox" id="pOnlyChanged" onchange="renderParams()"> 바뀐 항목만 보기</label>
+  </p>
+  <div id="plist"></div>
+</section>
+
+<section id="history">
+  <h2>지난 결과</h2>
+  <table id="hist"></table>
+  <div class="res" id="r_history"></div>
+</section>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const TABS=[['live','실시간'],['doa','방향 탐지'],['beamscan','빔 패턴·멀티빔'],['ns','잡음 제거'],['aec','에코 제거'],['record','자유 녹음'],['voicegate','내 목소리만'],['params','파라미터'],['history','지난 결과']];
+const BEAMS=[['빔 1 (집중)','--b1'],['빔 2 (집중)','--b2'],['탐색 빔','--b3'],['자동선택','--b4']];
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let seq=0,wasRunning=false,runsCache=[];
+
+TABS.forEach(([id,name])=>{const b=document.createElement('button');b.textContent=name;b.onclick=()=>tab(id);b.id='t_'+id;$('nav').append(b)});
+function tab(id){TABS.forEach(([t])=>{$(t).classList.toggle('on',t===id);$('t_'+t).classList.toggle('on',t===id)});if(id==='history')loadRuns();if(id==='params')loadParams()}
+tab(TABS.some(t=>t[0]===location.hash.slice(1))?location.hash.slice(1):'live');
+
+async function post(url,body){
+  const r=await fetch(url,{method:'POST',body:JSON.stringify(body)});const j=await r.json();
+  if(j.error)alert(j.error);return j;
+}
+const setp=(name,values)=>post('/api/set',{name,values});
+// 입력 중인 각도는 화면 갱신이 덮어쓰지 않게 표시해 두고(dirty), 적용 후 장치 값이 따라올 때까지 잠깐 유지한다
+async function applyFix(){const e1=$('sF1'),e2=$('sF2');const d=[e1,e2].map(e=>((+e.value||0)%360+360)%360);
+  await setp('AEC_FIXEDBEAMSAZIMUTH_VALUES',d.map(v=>v*Math.PI/180));
+  setTimeout(()=>{delete e1.dataset.dirty;delete e2.dataset.dirty},2000)}
+const run=(test,params)=>post('/api/run',{test,params});
+async function snap(){const j=await post('/api/snapshot',{seconds:10});if(j.files)$('snapOut').innerHTML=j.files.map((f,i)=>`<div>${i?'R':'L'} 채널<audio controls src="${f}"></audio></div>`).join('')}
+
+// ---- 방향 다이얼 ----
+function drawDial(l){
+  const c=$('dial'),g=c.getContext('2d'),W=c.width,R=W/2-34,cx=W/2,cy=W/2;
+  g.clearRect(0,0,W,W);g.lineWidth=1;g.strokeStyle=css('--line');g.fillStyle=css('--mute');g.font='12px system-ui';g.textAlign='center';g.textBaseline='middle';
+  [1,.66,.33].forEach(k=>{g.beginPath();g.arc(cx,cy,R*k,0,7);g.stroke()});
+  for(let a=0;a<360;a+=30){const t=(a-90)*Math.PI/180;g.beginPath();g.moveTo(cx+Math.cos(t)*R*.33,cy+Math.sin(t)*R*.33);g.lineTo(cx+Math.cos(t)*R,cy+Math.sin(t)*R);g.stroke();g.fillText(a+'°',cx+Math.cos(t)*(R+18),cy+Math.sin(t)*(R+18))}
+  if(!l)return;
+  if(l.az)l.az.forEach((a,i)=>{if(a==null)return;const e=l.en?l.en[i]:0,k=Math.min(1,Math.max(.38,Math.log10((e||0)+1)/6)),t=(a-90)*Math.PI/180;
+    g.fillStyle=css(BEAMS[i][1]);g.globalAlpha=e>0?1:.45;g.beginPath();g.arc(cx+Math.cos(t)*R*k,cy+Math.sin(t)*R*k,i===3?6:9,0,7);g.fill();g.globalAlpha=1});
+  if(l.doa!=null){const t=(l.doa-90)*Math.PI/180;g.strokeStyle=css('--ink');g.globalAlpha=l.speech?1:.25;g.lineWidth=4;g.beginPath();g.moveTo(cx,cy);g.lineTo(cx+Math.cos(t)*R,cy+Math.sin(t)*R);g.stroke();g.globalAlpha=1;
+    g.fillStyle=css('--ink');g.font='bold 20px system-ui';g.fillText(l.doa+'°',cx,cy+R*.5*(Math.sin(t)>0?-1:1))}
+}
+// ---- 스펙트로그램 ----
+const LUT=[];for(let i=0;i<256;i++){const x=i/255;LUT.push([Math.round(255*Math.min(1,x*1.9)),Math.round(255*Math.max(0,Math.min(1,(x-.35)*1.8))),Math.round(255*(x<.4?x*1.6:Math.max(0,1.2-x*1.4)+Math.max(0,(x-.8)*4)))])}
+function drawSpec(cols){
+  if(!cols.length)return;const c=$('spec'),g=c.getContext('2d'),w=2,H=c.height,h=H/2/64,n=Math.min(cols.length,c.width/w);
+  g.drawImage(c,-n*w,0);
+  cols.slice(-n).forEach((col,k)=>{const x=c.width-(n-k)*w;col.forEach((ch,ci)=>{ch.forEach((v,b)=>{const q=LUT[v];g.fillStyle=`rgb(${q[0]},${q[1]},${q[2]})`;g.fillRect(x,ci*H/2+(63-b)*h,w,h+.5)})})});
+  g.fillStyle='#fff';g.fillRect(0,H/2-.5,c.width,1);
+}
+function chip(el,text,cls){el.textContent=text;el.className='chip '+(cls||'')}
+const routeName=r=>{if(!r)return'?';const [c,s]=r;const N={0:'무음',1:'원본 마이크',3:'증폭된 마이크',4:'스피커 기준신호',5:'스피커 기준신호',6:['빔 1','빔 2','탐색 빔','자동선택 빔'][s]||'처리된 빔',7:'AEC 직후',8:'기본 출력(자동선택 빔)'};return (N[c]||'카테고리 '+c)+(c==1||c==3||c==7?' '+s:'')};
+function setIfIdle(el,val){if(document.activeElement!==el&&!el.dataset.dirty&&val!=null)el.type==='checkbox'?el.checked=!!val:el.value=val}
+
+function render(s){
+  chip($('cCtl'),s.ctl_ok?'제어 연결됨':'제어 연결 안 됨',s.ctl_ok?'ok':'bad');
+  chip($('cAud'),s.audio_ok?'오디오 입력 중':'오디오 없음',s.audio_ok?'ok':'bad');
+  const i=s.info||{};chip($('cInfo'),(i.sim?'시뮬레이션 · ':'')+(i.version?'펌웨어 '+i.version:'')+(i.ch?` · ${i.ch}채널 ${i.rate}Hz`:''));
+  $('topErr').textContent=[s.ctl_ok?'':s.ctl_error,s.audio_ok?'':(s.audio_error||(s.ctl_ok?'XVF3800 사운드카드를 여는 중…':''))].filter(Boolean).join('\n');
+  const l=s.live||{},w=s.slow||{};
+  drawDial(l);
+  $('beams').innerHTML='<tr><th>빔</th><th>방향</th><th>음성 에너지</th></tr>'+BEAMS.map((b,k)=>`<tr><td><span class="dot" style="background:var(${b[1]})"></span>${b[0]}</td><td class="num">${l.az&&l.az[k]!=null?l.az[k].toFixed(0)+'°':'-'}</td><td class="num">${l.en&&l.en[k]!=null?Math.round(l.en[k]).toLocaleString():'-'}</td></tr>`).join('');
+  chip($('cSp'),l.speech?'음성 감지됨':'음성 없음',l.speech?'ok':'');
+  const cv=w.AEC_AECCONVERGED;chip($('cConv'),'AEC '+(cv?(cv[0]?'수렴':'미수렴'):'-'),cv&&cv[0]?'ok':'');
+  const rt=w.AEC_RT60;chip($('cRt'),'잔향 RT60 '+(rt&&rt[0]>0?rt[0].toFixed(2)+'초':'측정 안 됨'));
+  const ag=w.PP_AGCGAIN;chip($('cAgc'),'AGC 이득 ×'+(ag?ag[0].toFixed(1):'-'));
+  const gp=w.GPO_READ_VALUES;chip($('cMute'),gp&&gp[1]?'마이크 음소거 중!':'음소거 아님',gp&&gp[1]?'bad':'');
+  const names=['L: '+routeName(w.AUDIO_MGR_OP_L),'R: '+routeName(w.AUDIO_MGR_OP_R),'채널 3','채널 4','채널 5','채널 6'];
+  $('meters').innerHTML=(s.levels||[]).map((v,k)=>`<div class="mrow"><span>${names[k]}</span><div class="meter"><i style="width:${100-Math.max(0,Math.min(100,(v+80)/80*100))}%"></i></div><span class="num">${v.toFixed(0)} dBFS</span></div>`).join('');
+  $('routeNow').textContent='현재: '+names[0]+' / '+names[1];
+  setIfIdle($('sAgc'),w.PP_AGCONOFF&&w.PP_AGCONOFF[0]);setIfIdle($('sEcho'),w.PP_ECHOONOFF&&w.PP_ECHOONOFF[0]);
+  setIfIdle($('sNs'),w.PP_MIN_NS&&w.PP_MIN_NS[0]);setIfIdle($('sNn'),w.PP_MIN_NN&&w.PP_MIN_NN[0]);
+  $('vNs').textContent=w.PP_MIN_NS?w.PP_MIN_NS[0].toFixed(2):'';$('vNn').textContent=w.PP_MIN_NN?w.PP_MIN_NN[0].toFixed(2):'';
+  setIfIdle($('sFix'),w.AEC_FIXEDBEAMSONOFF&&w.AEC_FIXEDBEAMSONOFF[0]);
+  const fa=w.AEC_FIXEDBEAMSAZIMUTH_VALUES;if(fa){setIfIdle($('sF1'),Math.round(((fa[0]*180/Math.PI)%360+360)%360));setIfIdle($('sF2'),Math.round(((fa[1]*180/Math.PI)%360+360)%360))}
+  setIfIdle($('sLed'),w.LED_EFFECT&&w.LED_EFFECT[0]);
+  drawSpec(s.spec.cols);seq=s.spec.seq;
+  // 진행 안내 배너
+  const j=s.job||{},b=$('banner');
+  if(j.running){b.style.display='block';b.className=j.kind;b.querySelector('.t').textContent=j.text;
+    b.querySelector('.c').textContent=(j.kind==='do'?'● 녹음/측정 중 · ':j.kind==='wait'?'준비 · ':'')+Math.ceil(j.remain||0)+'초 남음';
+    b.querySelector('.bar i').style.width=(j.total?100*(1-(j.remain||0)/j.total):0)+'%'}
+  else b.style.display='none';
+  document.querySelectorAll('button.go').forEach(x=>x.disabled=!!j.running||!s.ctl_ok||!s.audio_ok);
+  if(wasRunning&&!j.running){
+    if(j.error)showResult(j.test,{error:j.error});else if(j.result)showResult(j.test,j.result);
+  }
+  wasRunning=!!j.running;
+}
+// ---- 파라미터 탭 ----
+let pdata=null;
+const D=180/Math.PI,fmt=v=>typeof v==='number'?(Number.isInteger(v)?v:+v.toPrecision(4)):v;
+const shown=(p,v)=>v==null?null:p.kind==='deg'?v.map(x=>Math.round(((x*D)%360+360)%360)):p.kind==='hex'?['#'+(v[0]&0xffffff).toString(16).padStart(6,'0')]:v.map(fmt);
+const agcOn=()=>{const a=pdata&&findP('PP_AGCONOFF');return a&&a.value&&a.value[0]};
+const changed=p=>!(p.name==='PP_AGCGAIN'&&agcOn())&&p.value!=null&&p.base!=null&&JSON.stringify(shown(p,p.value))!==JSON.stringify(shown(p,p.base));
+async function loadParams(){
+  const j=await (await fetch('/api/params')).json();
+  if(j.error){$('plist').innerHTML=`<div class="err">${j.error}</div>`;return}
+  pdata=j;renderParams();
+}
+function ctl(p){
+  const v=shown(p,p.value);if(v==null)return '<small>이 펌웨어에서 지원 안 됨</small>';
+  const on=`onchange="applyParam('${p.name}')"`;
+  if(p.kind==='bool')return `<label><input type="checkbox" data-p="${p.name}" ${v[0]?'checked':''} ${on}> ${v[0]?'켜짐':'꺼짐'}</label>`;
+  if(p.kind==='sel')return `<select data-p="${p.name}" ${on}>${p.spec.map(([a,b])=>`<option value="${a}" ${a==v[0]?'selected':''}>${b}</option>`).join('')}</select>`;
+  if(p.kind==='hex')return `<input type="color" data-p="${p.name}" value="${v[0]}" ${on}>`;
+  const s=p.kind==='deg'?[0,359,1]:(p.spec||[]),at=(s.length?`min="${s[0]}" max="${s[1]}"`:'')+` step="${s[2]||'any'}"`;
+  let h=v.map(x=>`<input type="number" data-p="${p.name}" value="${x}" ${at} ${on} style="width:92px">`).join(' ')+(p.kind==='deg'?' °':'');
+  if(v.length===1&&s.length&&s[2]&&s[1]<=15)h+=` <input type="range" value="${v[0]}" ${at} oninput="this.previousElementSibling.value=this.value" onchange="applyParam('${p.name}')">`;
+  return h;
+}
+function renderParams(){
+  if(!pdata)return;const only=$('pOnlyChanged').checked;let h='';
+  pdata.groups.forEach(g=>{
+    const items=g.items.filter(p=>!only||changed(p));if(!items.length)return;
+    h+=`<h3>${g.title}</h3><table><tr><th style="width:27%">항목</th><th style="width:30%">값</th><th>설명</th><th style="width:150px">처음 값</th></tr>`+
+      items.map(p=>{const c=changed(p),b=shown(p,p.base);return `<tr style="${c?'background:#f5c54222':''}"><td><b>${p.label}</b><br><small>${p.name}</small></td><td>${ctl(p)}</td><td><small>${p.desc}${p.kind==='num'&&p.spec?` (범위 ${p.spec[0]} ~ ${p.spec[1]})`:''}</small></td><td class="num"><small>${b?b.join(', '):'-'}</small> ${c?`<button class="sub" onclick="revert('${p.name}')">되돌리기</button>`:''}</td></tr>`}).join('')+'</table>';
+  });
+  $('plist').innerHTML=h||'<p><small>바뀐 항목이 없습니다.</small></p>';
+}
+const findP=n=>pdata.groups.flatMap(g=>g.items).find(p=>p.name===n);
+async function applyParam(name){
+  const p=findP(name),els=[...document.querySelectorAll(`[data-p="${name}"]`)];
+  let vals=els.map(e=>e.type==='checkbox'?+e.checked:e.type==='color'?parseInt(e.value.slice(1),16):+e.value);
+  if(p.kind==='deg')vals=vals.map(x=>x/D);
+  await post('/api/set',{name,values:vals});await loadParams();
+}
+async function revert(name){await post('/api/set',{name,values:findP(name).base});await loadParams()}
+async function revertAll(){
+  const list=pdata.groups.flatMap(g=>g.items).filter(changed);
+  if(!list.length||!confirm(list.length+'개 항목을 처음 값으로 되돌릴까요?'))return;
+  for(const p of list)await fetch('/api/set',{method:'POST',body:JSON.stringify({name:p.name,values:p.base})});
+  await loadParams();
+}
+function resultHtml(r){
+  if(r.error)return `<div class="err">${r.error}</div>`;
+  let h=`<h2>${r.title} <small>${r.time||''} · 펌웨어 ${r.firmware||'?'}</small></h2>`;
+  if(r.verdict)h+=`<div class="verdict">${r.verdict}</div>`;
+  if(r.summary)h+='<div class="sum">'+r.summary.map(([k,v])=>`<div><b>${v}</b><span>${k}</span></div>`).join('')+'</div>';
+  if(r.audio)h+='<h3>직접 듣고 비교 (음량을 같게 맞춘 파일)</h3><div class="ab">'+r.audio.map(a=>`<div>${a.label}<audio controls preload="none" src="/runs/${r.dir}/${a.file}"></audio></div>`).join('')+'</div>';
+  (r.images||[]).forEach(f=>h+=`<img src="/runs/${r.dir}/${f}" alt="">`);
+  if(r.table)h+='<table><tr>'+r.table.head.map(x=>`<th>${x}</th>`).join('')+'</tr>'+r.table.rows.map(row=>'<tr>'+row.map(x=>`<td class="num">${x}</td>`).join('')+'</tr>').join('')+'</table>';
+  const notes=[...(r.warnings||[]).map(x=>'⚠ '+x),...(r.notes||[])];
+  if(notes.length)h+='<ul class="notes">'+notes.map(n=>`<li>${n}</li>`).join('')+'</ul>';
+  return h+`<small>파일 위치: runs/${r.dir}/</small>`;
+}
+function showResult(test,r){const el=$('r_'+test);if(el){el.innerHTML=resultHtml(r);tab(test);el.scrollIntoView({behavior:'smooth'})}}
+async function loadRuns(){
+  const j=await (await fetch('/api/runs')).json();runsCache=j.runs;
+  if(!$('pPreset').options.length)for(const [k,v] of Object.entries(j.routes)){$('pPreset').add(new Option(v,k));$('sRoute').add(new Option(v,k))}
+  $('hist').innerHTML='<tr><th>시각</th><th>테스트</th><th>결과</th><th></th></tr>'+j.runs.map((r,k)=>`<tr><td>${r.time}</td><td>${r.title}</td><td>${r.verdict||''}</td><td><button class="sub" onclick="$('r_history').innerHTML=resultHtml(runsCache[${k}])">보기</button></td></tr>`).join('');
+  return j;
+}
+loadRuns().then(j=>{const seen={};j.runs.forEach(r=>{if(!seen[r.test]&&$('r_'+r.test)){seen[r.test]=1;$('r_'+r.test).innerHTML='<small>가장 최근 결과</small>'+resultHtml(r)}})});
+(async function loop(){
+  for(;;){
+    try{render(await (await fetch('/api/state?seq='+seq)).json())}
+    catch(e){$('topErr').textContent='서버와 연결이 끊겼습니다. 터미널에서 server.py 가 실행 중인지 확인하세요.'}
+    await new Promise(r=>setTimeout(r,100));
+  }
+})();
+</script>
+</body>
+</html>

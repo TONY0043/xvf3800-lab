@@ -1,0 +1,8 @@
+runs/
+tools/
+firmware/
+.gstack/
+__pycache__/
+*.pyc
+voicegate.json
+utterances/

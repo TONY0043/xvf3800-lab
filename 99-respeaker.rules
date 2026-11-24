@@ -1,0 +1,2 @@
+# reSpeaker XVF3800: sudo 없이 USB 제어 명령을 보낼 수 있게 한다 (Seeed 공식 위키의 규칙과 동일)
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2886", MODE="0666", GROUP="plugdev"
