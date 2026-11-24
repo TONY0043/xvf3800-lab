@@ -190,6 +190,10 @@ small{color:var(--mute)}
   <label>자유 대화 <input type="number" id="pTmix" value="30">초</label>
   <button class="go" onclick="run('voicegate',{me:+pMe.value,others:+pOt.value,t_me:+pTme.value,t_others:+pTot.value,t_mix:+pTmix.value})">시작</button>
   <div class="res" id="r_voicegate"></div>
+  <h3>비교: 장치 자체 게이팅</h3>
+  <div class="how">XVF3800 에는 같은 원리의 기능이 들어 있습니다. <b>고정 빔 게이팅</b>을 켜면 두 고정 빔 중 말소리 에너지가 낮은 쪽을 장치가 스스로 무음 처리합니다. 위와 같은 순서로 녹음해서, 소프트웨어 없이 장치만으로 얼마나 갈리는지와 <b>말머리가 잘리는지</b>를 잽니다. '나만 말하기'에서는 짧게 끊어서 여러 번 말해 주세요.</div>
+  <button class="go" onclick="run('gating',{me:+pMe.value,others:+pOt.value,t_me:+pTme.value,t_others:+pTot.value,t_mix:+pTmix.value})">장치 게이팅 시험 시작</button>
+  <div class="res" id="r_gating"></div>
 </section>
 
 <section id="params">
@@ -354,7 +358,7 @@ function resultHtml(r){
   if(notes.length)h+='<ul class="notes">'+notes.map(n=>`<li>${n}</li>`).join('')+'</ul>';
   return h+`<small>파일 위치: runs/${r.dir}/</small>`;
 }
-function showResult(test,r){const el=$('r_'+test);if(el){el.innerHTML=resultHtml(r);tab(test);el.scrollIntoView({behavior:'smooth'})}}
+function showResult(test,r){const el=$('r_'+test);if(el){el.innerHTML=resultHtml(r);tab(el.closest('section').id);el.scrollIntoView({behavior:'smooth'})}}
 async function loadRuns(){
   const j=await (await fetch('/api/runs')).json();runsCache=j.runs;
   if(!$('pPreset').options.length)for(const [k,v] of Object.entries(j.routes)){$('pPreset').add(new Option(v,k));$('sRoute').add(new Option(v,k))}

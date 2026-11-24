@@ -274,7 +274,10 @@ class App:
         try:
             for k, v in settings.items():
                 try:
-                    old[k] = self.dev.read(k)
+                    cur = self.dev.read(k)
+                    if len(cur) == len(v) and all(abs(float(c) - float(x)) < 1e-4 for c, x in zip(cur, v)):
+                        continue        # 이미 같은 값이면 다시 쓰지 않는다 (빔 설정을 다시 쓰면 장치 내부 상태가 초기화될 수 있다)
+                    old[k] = cur
                     self.dev.write(k, v)
                 except Exception as e:  # noqa: BLE001
                     self.job.setdefault("warnings", []).append(f"{k} 설정 실패: {e}")
@@ -626,6 +629,121 @@ class App:
                           "보존율·누설률은 '나만'/'상대만' 녹음으로 잰 값이고, 그 녹음으로 문턱도 정했기 때문에 실제보다 좋게 나올 수 있습니다. 섞인 대화는 정답이 없으므로 직접 들어서 판단하세요.",
                           "문턱은 voicegate.json 에 저장했습니다. 테스트가 끝나면 장치 설정은 원래대로 돌아갑니다.",
                           "실제로 쓸 때: python3 voicegate.py setup 으로 장치를 설정하고, 녹음 파일은 python3 voicegate.py file in.wav out.wav 로 거릅니다."]}
+
+    # ---------- 테스트 7: 장치 자체 게이팅 시험 ----------
+    def test_gating(self, p, rd):
+        """고정 빔 게이팅을 켜고 L=빔1(나), R=원본 마이크로 동시에 녹음한다.
+        원본 마이크는 게이팅의 영향을 받지 않으므로 '실제로 말이 있었던 때'의 기준이 된다."""
+        me, ot = float(p.get("me", 90)), float(p.get("others", 270))
+        t_me, t_ot, t_mix = float(p.get("t_me", 20)), float(p.get("t_others", 20)), float(p.get("t_mix", 30))
+        st = VG.device_settings(me, ot)
+        st.update({"AEC_FIXEDBEAMSGATING": [1], "AUDIO_MGR_OP_R": [3, 0]})
+        flip = None
+        with self.temp(st):
+            self.phase("빔을 맞추는 중 — 모두 조용히", 2, "wait")
+            fq = self.phase("모두 조용히 — 배경 소음을 잽니다", 3, "wait")
+            if self.sim:
+                self.dev.src_deg = me
+            fm = self.phase("나만 말하세요 — 짧게 끊어서 여러 번 (말머리가 잘리는지 봅니다)", t_me, "do")
+            if self.sim:
+                self.dev.src_deg = ot
+            self.phase("이제 나는 조용히", 2, "wait")
+            fo = self.phase("상대(두 사람)만 말합니다 — 나는 조용히", t_ot, "do")
+            if self.sim:
+                stop = threading.Event()
+
+                def flip_loop():
+                    k = 0
+                    while not stop.is_set():
+                        self.dev.src_deg = me if k % 2 == 0 else ot
+                        k += 1
+                        stop.wait(4)
+                flip = threading.Thread(target=flip_loop, daemon=True)
+                flip.start()
+            try:
+                fx = self.phase("모두 자유롭게 대화하세요 — 번갈아, 가끔은 겹쳐서", t_mix, "do")
+            finally:
+                if flip:
+                    stop.set()
+        xq, xm, xo, xx = (self.cap.get(*f) for f in (fq, fm, fo, fx))
+        hop = VG.HOP / SR
+        fl_l = float(np.median(VG.db(VG.band_power(xq[:, 0]))))
+        fl_r = float(np.median(VG.db(VG.band_power(xq[:, 1]))))
+        if self.sim:   # 가짜 장치는 '조용히' 구간에도 말소리를 내므로 가장 조용한 순간을 배경으로 본다
+            fl_r = float(np.percentile(VG.db(VG.band_power(xq[:, 1])), 5))
+            fl_l = float(np.percentile(VG.db(VG.band_power(xq[:, 0])), 5))
+        thr_l = max(fl_l + 10, -80.0)     # 조용할 때 완전 무음(-140)이어도 기준이 너무 낮아지지 않게
+
+        def measure(x):
+            l, r = VG.db(VG.band_power(x[:, 0])), VG.db(VG.band_power(x[:, 1]))
+            sp = r > fl_r + (3 if self.sim else 10)    # 원본 마이크 기준 '말이 있음' (가짜 장치는 원본 소음이 커서 낮춤)
+            on = l > thr_l                          # 내 빔에서 '소리가 들림'
+            starts = np.flatnonzero(sp & ~np.concatenate([[False], sp[:-1]]))
+            delays = []
+            for i in starts:                        # 말이 시작된 뒤 내 빔이 열릴 때까지 걸린 시간
+                if i >= 12 and not sp[i - 12:i].any() and sp[i:i + 12].mean() > 0.6:
+                    k = np.flatnonzero(on[i:i + 94])
+                    if len(k):
+                        delays.append(float(k[0] * hop * 1000))
+            ends = np.flatnonzero(on[:-1] & ~on[1:])     # 빔이 닫힌 순간 중, 그 뒤 0.2초에도 말이 이어지던 것 = 말 도중 끊김
+            cuts = int(sum(sp[i + 1:i + 13].mean() > 0.5 for i in ends if i + 13 < len(sp)))
+            return {"l": l, "r": r, "speech": float(sp.sum() * hop), "open": float((sp & on).sum() * hop), "cuts": cuts,
+                    "lvl": float(np.median(l[sp])) if sp.any() else -140.0, "delays": delays}
+
+        mm, mo, mx = measure(xm), measure(xo), measure(xx)
+
+        def beam_stats(f):
+            """그 구간 동안 장치가 보고한 빔별 말소리 에너지: (빔1, 빔2, 탐색 빔)이 0 보다 컸던 시간 비율과 중앙값."""
+            en = [q["en"] for q in self.tl(*f) if q.get("en")]
+            if not en:
+                return "기록 없음"
+            e = np.array(en, float)[:, :3]
+            return " / ".join(f"{100 * (e[:, k] > 0).mean():.0f}%" + (f" ({np.median(e[:, k][e[:, k] > 0]):,.0f})" if (e[:, k] > 0).any() else "")
+                              for k in range(3))
+        stats = [beam_stats(f) for f in (fm, fo, fx)]
+        if mm["speech"] < 2 or mo["speech"] < 2:
+            raise RuntimeError("말소리가 너무 적게 잡혔습니다. 더 크게, 계속 말해 주세요.")
+        keep, leak = mm["open"] / mm["speech"], mo["open"] / mo["speech"]
+        delay = float(np.median(mm["delays"])) if mm["delays"] else None
+        files = []
+        for tag, ko, x in (("mix", "섞인 대화", xx), ("others", "상대만", xo), ("me", "나만", xm)):
+            g = min(10 ** ((-20 - A.pct(xm[:, 0], 95)) / 20), 1000.0)   # 세 녹음을 같은 배율로 (작아진 정도가 그대로 들리게)
+            A.write_wav(rd / f"{tag}_gated.wav", np.clip(x[:, 0] * g, -0.98, 0.98))
+            A.write_wav(rd / f"{tag}_rawmic.wav", A.normalize(x[:, 1]))
+            A.write_wav(rd / f"{tag}_stereo.wav", x[:, :2])
+            files += [{"label": f"{ko} — 내 빔 (게이팅 켬, STT 로 넘어갈 소리)", "file": f"{tag}_gated.wav"},
+                      {"label": f"{ko} — 원본 마이크 (비교용)", "file": f"{tag}_rawmic.wav"}]
+        A.plot_levels(rd / "gating.png", [
+            (name, np.arange(len(m["l"])) * hop, {"raw mic (reference)": m["r"], "my beam, gating on": m["l"]})
+            for name, m in (("me only", mm), ("others only", mo), ("mixed talk", mx))], thr_l)
+        rows = [[ko, f"{m['speech']:.1f}초", f"{m['open']:.1f}초", f"{100 * m['open'] / m['speech']:.0f}%" if m["speech"] else "-",
+                 f"{m['lvl']:.0f} dB", st_] for (ko, m), st_ in zip((("나만 말하기", mm), ("상대만 말하기", mo), ("섞인 대화", mx)), stats)]
+        atten = mm["lvl"] - mo["lvl"]
+        if keep < 0.5:
+            verdict = "내 말까지 막혔습니다 — 게이팅이 거의 열리지 않았습니다"
+        elif mm["cuts"] > mm["speech"] / 5:
+            verdict = "남의 말은 막지만 내 말이 토막 납니다 — STT 용으로는 부적합"
+        elif keep >= 0.9 and leak <= 0.05:
+            verdict = "장치 게이팅만으로 잘 갈립니다"
+        elif leak <= 0.2:
+            verdict = "대체로 갈리지만 새거나 잘리는 구간이 있습니다"
+        else:
+            verdict = "장치 게이팅만으로는 부족합니다"
+        return {"title": "장치 자체 게이팅 시험 (고정 빔 게이팅 켬)",
+                "verdict": f"{verdict} — 내 말 보존 {100 * keep:.0f}%, 남의 말 누설 {100 * leak:.0f}%",
+                "summary": [["내 말 보존율", f"{100 * keep:.0f}%"], ["남의 말 누설률", f"{100 * leak:.0f}%"],
+                            ["내가 말하는 도중 끊긴 횟수", f"{mm['cuts']}회 (말한 시간 {mm['speech']:.0f}초 동안, 0 에 가까워야 알아들을 수 있음)"],
+                            ["말머리 지연 (중앙값)", "측정 안 됨" if delay is None else f"{delay:.0f} ms ({len(mm['delays'])}회 측정)"],
+                            ["내 빔 음량: 내가 말할 때 / 상대가 말할 때", f"{mm['lvl']:.0f} dB / {mo['lvl']:.0f} dB (차이 {atten:.0f} dB)"],
+                            ["'들림'으로 센 기준", f"{thr_l:.0f} dB (조용할 때 내 빔 {fl_l:.0f} dB)"]],
+                "table": {"head": ["녹음", "말이 있던 시간 (원본 마이크 기준)", "그중 내 빔이 들린 시간", "비율", "내 빔 음량",
+                                   "장치가 말소리를 감지한 시간 비율: 빔1(나) / 빔2(상대) / 탐색 빔 (괄호 = 에너지 중앙값)"], "rows": rows},
+                "audio": files, "images": ["gating.png"],
+                "notes": ["원본 마이크(R)로 '실제로 말이 있었던 때'를 재고, 그때 내 빔(L)이 열려 있었는지를 봅니다.",
+                          "마지막 열은 장치가 스스로 판단한 값입니다. 게이팅은 이 '빔별 말소리 에너지'로 빔을 열고 닫으므로, 빔1 이 0% 인데 탐색 빔만 높으면 '말은 들었지만 내 빔 방향의 말로 인정하지 않은 것'입니다.",
+                          "말머리 지연 = 조용하다가 말이 시작된 순간부터 내 빔에서 소리가 나올 때까지 걸린 시간. 크면 첫 음절이 잘립니다.",
+                          "방향 거름망(소프트웨어)의 보존율·누설률과 같은 뜻의 숫자지만 재는 방법이 달라 1~2% 차이는 의미가 없습니다. 귀로 듣는 비교가 더 중요합니다.",
+                          "테스트가 끝나면 장치 설정은 원래대로 돌아갑니다."]}
 
     def snapshot(self, seconds):
         d = RUNS / "_snapshot"

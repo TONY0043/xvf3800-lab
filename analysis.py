@@ -154,3 +154,20 @@ def plot_gate(path, parts, thr):
         ax.set_title(f"{title}   green = passed, red = blocked, dashed = threshold {thr:+.1f} dB", loc="left", fontsize=10)
     axes[-1].set_xlabel("seconds")
     _save(fig, path)
+
+
+def plot_levels(path, parts, thr):
+    """parts: [(영문 제목, 시간축, {라벨: dB 배열})] — 게이팅 시험용 음량 그래프."""
+    fig = Figure(figsize=(11, 2.3 * len(parts)), constrained_layout=True)
+    axes = np.atleast_1d(fig.subplots(len(parts), 1))
+    for ax, (title, t, series) in zip(axes, parts):
+        for (label, y), color in zip(series.items(), ("#888888", "#2e7dd1")):
+            ax.plot(t, np.maximum(y, -110), color=color, lw=1, label=label)
+        ax.axhline(thr, color="black", ls="--", lw=1)
+        ax.set_ylim(-112, -20)
+        ax.set_xlim(0, max(float(t[-1]) if len(t) else 1, 1))
+        ax.set_ylabel("dB")
+        ax.set_title(title + "   (dashed = level counted as 'audible')", loc="left", fontsize=10)
+        ax.legend(loc="upper right", fontsize=8, ncol=2)
+    axes[-1].set_xlabel("seconds")
+    _save(fig, path)

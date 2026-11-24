@@ -132,6 +132,11 @@ class SimCapture(Capture):
             if self.dev.v["AEC_FIXEDBEAMSONOFF"][0] and cat == 6 and src < 2:
                 az = self.dev.v["AEC_FIXEDBEAMSAZIMUTH_VALUES"][src]
                 g = 0.12 + 0.88 * (0.5 + 0.5 * math.cos(az - math.radians(self.dev.src_deg))) ** 2
+                if self.dev.v["AEC_FIXEDBEAMSGATING"][0]:   # 게이팅: 말이 없거나 다른 빔이 더 크면 무음
+                    az2 = self.dev.v["AEC_FIXEDBEAMSAZIMUTH_VALUES"][1 - src]
+                    g2 = 0.12 + 0.88 * (0.5 + 0.5 * math.cos(az2 - math.radians(self.dev.src_deg))) ** 2
+                    if not speech.any() or g < g2:
+                        return np.zeros(HOP, np.float32)
             ns = max(self.dev.v["PP_MIN_NS"][0], 0.05)
             return speech * g + noise * ns * g + echo * 0.03
         if cat in (1, 3, 7):
